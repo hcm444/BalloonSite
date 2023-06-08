@@ -5,70 +5,166 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/leaflet/1.0.0/leaflet.css" />
     <style>
         #map {
-            height: 1000px;
+            height: 500px;
+            margin-bottom: 20px;
         }
+    .chart-container {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .chart {
+        flex: 1;
+        margin-right: 0px;
+    }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div class="chart-container">
+        <div id="altitude-plot" class="chart"></div>
+        <div id="velocity-plot" class="chart"></div>
+        <div id="true-track-plot" class="chart"></div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/leaflet/1.0.0/leaflet.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script>
-    function initMap() {
-        var data = {{ data|tojson }};
+function initMap() {
+    var data = {{ data|tojson }};
 
-        var map = L.map('map').setView([data[0][7], data[0][6]], 10);
+    var map = L.map('map').setView([data[0][7], data[0][6]], 10);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
-            maxZoom: 18,
-        }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors',
+        maxZoom: 18,
+    }).addTo(map);
 
-        var coordinates = [];
-        var timestamps = [];
+    var coordinates = [];
+    var timestamps = [];
+    var altitudes = [];
+    var velocities = [];
+    var trueTracks = [];
 
-        for (var i = 0; i < data.length; i++) {
-            var latitude = data[i][7];
-            var longitude = data[i][6];
-            var timestamp = data[i][0];
+    for (var i = 0; i < data.length; i++) {
+        var latitude = data[i][7];
+        var longitude = data[i][6];
+        var timestamp = data[i][0];
+        var altitude = data[i][8];
+        var velocity = data[i][10];
+        var trueTrack = data[i][11];
 
-            coordinates.push([latitude, longitude]);
-            timestamps.push(timestamp);
-        }
-
-        var line = L.polyline(coordinates, { color: 'blue' }).addTo(map);
-
-        var currentIndex = 0;
-        var fadeInterval = setInterval(function() {
-            var currentTimestamp = timestamps[currentIndex];
-            var opacity = (Date.now() - currentTimestamp) / (timestamps[timestamps.length - 1] - currentTimestamp);
-            line.setStyle({ opacity: opacity });
-
-            currentIndex++;
-
-            if (currentIndex >= coordinates.length) {
-                clearInterval(fadeInterval);
-            }
-        }, 100);
-
-        var latestData = data[data.length - 1];
-        var popupContent = `
-            <b>ICAO24:</b> ${latestData[1]}<br>
-            <b>Callsign:</b> ${latestData[2]}<br>
-            <b>Origin Country:</b> ${latestData[3]}<br>
-            <b>Latitude:</b> ${latestData[7]}<br>
-            <b>Longitude:</b> ${latestData[6]}<br>
-            <b>Altitude:</b> ${latestData[8]}<br>
-            <b>Heading:</b> ${latestData[10]}<br>
-            <b>Timestamp:</b> ${latestData[0]}`;
-
-        L.marker([latestData[7], latestData[6]])
-            .bindPopup(popupContent)
-            .addTo(map)
-            .openPopup();
+        coordinates.push([latitude, longitude]);
+        timestamps.push(timestamp);
+        altitudes.push(altitude);
+        velocities.push(velocity);
+        trueTracks.push(trueTrack);
     }
 
-    window.onload = initMap;
-    </script>
+    var line = L.polyline(coordinates, { color: 'blue' }).addTo(map);
+
+    var currentIndex = 0;
+    var fadeInterval = setInterval(function() {
+        var currentTimestamp = timestamps[currentIndex];
+        var opacity = (Date.now() - currentTimestamp) / (timestamps[timestamps.length - 1] - currentTimestamp);
+        line.setStyle({ opacity: opacity });
+
+        currentIndex++;
+
+        if (currentIndex >= coordinates.length) {
+            clearInterval(fadeInterval);
+        }
+    }, 100);
+
+    var latestData = data[data.length - 1];
+    var popupContent = `
+        <b>ICAO24:</b> ${latestData[1]}<br>
+        <b>Callsign:</b> ${latestData[2]}<br>
+        <b>Origin Country:</b> ${latestData[3]}<br>
+        <b>Latitude:</b> ${latestData[7]}<br>
+        <b>Longitude:</b> ${latestData[6]}<br>
+        <b>Altitude:</b> ${latestData[8]}<br>
+        <b>Heading:</b> ${latestData[10]}<br>
+        <b>Timestamp:</b> ${latestData[0]}`;
+
+    L.marker([latestData[7], latestData[6]])
+        .bindPopup(popupContent)
+        .addTo(map)
+        .openPopup();
+
+    // Create altitude plot
+    var altitudeTrace = {
+        x: timestamps,
+        y: altitudes,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'Altitude'
+    };
+
+    var altitudeLayout = {
+        title: 'Altitude over Time',
+        xaxis: {
+            title: 'Timestamp'
+        },
+        yaxis: {
+            title: 'Altitude (feet)'
+        }
+    };
+
+    var altitudeData = [altitudeTrace];
+
+    Plotly.newPlot('altitude-plot', altitudeData, altitudeLayout);
+
+    // Create velocity plot
+    var velocityTrace = {
+        x: timestamps,
+        y: velocities,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'Velocity'
+    };
+
+    var velocityLayout = {
+        title: 'Velocity over Time',
+        xaxis: {
+            title: 'Timestamp'
+        },
+        yaxis: {
+            title: 'Velocity'
+        }
+    };
+
+        var velocityData = [velocityTrace];
+
+    Plotly.newPlot('velocity-plot', velocityData, velocityLayout);
+
+    // Create true track plot
+    var trueTrackTrace = {
+        x: timestamps,
+        y: trueTracks,
+        mode: 'lines',
+        type: 'scatter',
+        name: 'True Track'
+    };
+
+    var trueTrackLayout = {
+        title: 'True Track over Time',
+        xaxis: {
+            title: 'Timestamp'
+        },
+        yaxis: {
+            title: 'True Track'
+        }
+    };
+
+    var trueTrackData = [trueTrackTrace];
+
+    Plotly.newPlot('true-track-plot', trueTrackData, trueTrackLayout);
+}
+
+window.onload = initMap;
+</script>
 </body>
 </html>
